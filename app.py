@@ -41,4 +41,40 @@ def download_youtube():
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
+
     app.run(host='0.0.0.0', port=port)
+
+@app.route('/download/spotify', methods=['GET'])
+def download_spotify():
+    """Download track from Spotify using spotdl"""
+    try:
+        track_url = request.args.get('url')
+        if not track_url:
+            return jsonify({"error": "Missing 'url' parameter"}), 400
+        
+        temp_dir = tempfile.mkdtemp()
+        
+        # Use spotdl (it downloads from YouTube using Spotify metadata)
+        import subprocess
+        result = subprocess.run(
+            ['spotdl', track_url, '--output', temp_dir, '--format', 'mp3'],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        
+        if result.returncode != 0:
+            return jsonify({"error": f"spotdl failed: {result.stderr}"}), 500
+        
+        # Find the downloaded file
+        files = list(Path(temp_dir).glob('*.mp3'))
+        if not files:
+            return jsonify({"error": "No file downloaded"}), 500
+        
+        filepath = str(files[0])
+        filename = os.path.basename(filepath)
+        
+        return send_file(filepath, mimetype='audio/mpeg', as_attachment=True, download_name=filename)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
