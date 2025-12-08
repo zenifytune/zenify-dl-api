@@ -73,22 +73,25 @@ def stream():
             return jsonify({'url': info['url']})
             
     except Exception as e:
+        pytube_error = "Not attempted"
         print(f"yt-dlp failed: {e}. Trying pytubefix...")
         try:
              from pytubefix import YouTube as PyTube
-             # Use po_token logic if available, but standard first
-             yt = PyTube(url)
+             # Enable PO Token to bypass bot detection
+             # Use ANDROID client which is often more robust
+             yt = PyTube(url, client='ANDROID', use_po_token=True)
              stream = yt.streams.get_audio_only()
              if stream:
                  print("pytubefix success!")
                  return jsonify({'url': stream.url})
         except Exception as e2:
+             pytube_error = str(e2)
              print(f"pytubefix failed: {e2}")
 
         # Return extended debug info in the error
         debug_info = {
             'error': str(e),
-            'pytube_error': str(locals().get('e2', 'Not attempted')),
+            'pytube_error': pytube_error,
             'cookie_status': locals().get('cookie_status', 'Unknown'),
             'cwd': os.getcwd(),
             'files_in_dir': os.listdir(os.getcwd())
