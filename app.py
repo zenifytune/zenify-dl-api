@@ -60,7 +60,7 @@ def stream():
             'verbose': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android_music', 'web_music', 'ios_music']
+                    'player_client': ['tv_embedded', 'tv', 'android_creator']
                 }
             }
         }
