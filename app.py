@@ -143,11 +143,14 @@ def stream():
     except Exception as e:
         # 3. Fallback: Pytubefix
         try:
-             from pytubefix import YouTube as PyTube
-             yt = PyTube(url, client='ANDROID', use_po_token=True)
-             stream = yt.streams.get_audio_only()
-             if stream:
-                 return jsonify({'url': stream.url})
+         try:
+              from pytubefix import YouTube as PyTube
+              # Disable PO Token (Interactive) to prevent hanging
+              # Try standard WEB client
+              yt = PyTube(url, client='WEB')
+              stream = yt.streams.get_audio_only()
+              if stream:
+                  return jsonify({'url': stream.url})
         except:
              pass
              
