@@ -1,0 +1,9 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_file.html
+# This is a generated file!  Do not edit.
+
+# REPLACE THIS CONTENT WITH YOUR REAL COOKIES FROM YOUTUBE
+# 1. Install "Get cookies.txt LOCALLY" extension for Chrome/Firefox
+# 2. Go to youtube.com
+# 3. Click extension -> Export
+# 4. Paste content here
