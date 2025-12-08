@@ -54,7 +54,8 @@ def stream():
     if not video_id:
         return jsonify({'error': 'No id provided'}), 400
         
-    url = f"https://music.youtube.com/watch?v={video_id}"
+    # Use standard YouTube URL to avoid SpotDL/YTM scraping issues
+    url = f"https://www.youtube.com/watch?v={video_id}"
     cleanup_downloads()
     
     # 1. Try SpotDL Download (Proxy Mode) - Requested by User
