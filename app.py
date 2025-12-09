@@ -26,8 +26,9 @@ def search_song():
         for song in results:
             if song['resultType'] == 'song':
                 # Standardizing the data for Flutter app
+                # Using 'name' instead of 'title' to match Saavn model
                 clean_results.append({
-                    "title": song['title'],
+                    "name": song['title'],
                     "artist": song['artists'][0]['name'] if song['artists'] else "Unknown",
                     "image": song['thumbnails'][-1]['url'] if song['thumbnails'] else "",
                     "id": song['videoId']
