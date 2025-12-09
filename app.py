@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 ytmusic = YTMusic()
 
-# Server-Side Instance List (More reliable than Client-Side)
+# 1. Cobalt (Best Quality, unstable)
 COBALT_INSTANCES = [
     "https://cobalt.154.53.53.53.sslip.io",
     "https://api.cobalt.koyeb.app",
@@ -14,15 +14,27 @@ COBALT_INSTANCES = [
     "https://cobalt.synced.ly",
 ]
 
+# 2. Piped (Reliable API, but aggressive caching/blocks)
 PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://api-piped.mha.fi",
     "https://pipedapi.drgns.space",
+    "https://pipedapi.tokhmi.xyz",
+    "https://pipedapi.moomoo.me"
+]
+
+# 3. Invidious (Old faithful, strict rate limits but often works)
+INVIDIOUS_INSTANCES = [
+    "https://inv.tux.pizza",
+    "https://vid.puffyan.us",
+    "https://invidious.drgns.space",
+    "https://invidious.lunar.icu",
+    "https://iv.ggtyler.dev"
 ]
 
 @app.route('/', methods=['GET'])
 def home():
-    return "Zenify Proxy Server Running", 200
+    return "Zenify Proxy Server Running (Active)", 200
 
 @app.route('/search', methods=['GET'])
 def search_song():
@@ -53,30 +65,27 @@ def stream_song():
 
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
     
-    # 1. Try Cobalt Instances
+    # Shared Headers to mimic browser
     headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Origin': 'https://cobalt.tools',
-        'Referer': 'https://cobalt.tools/'
+        'Origin': 'https://www.youtube.com',
+        'Referer': 'https://www.youtube.com/'
     }
     
+    # --- STRATEGY 1: COBALT ---
     for instance in COBALT_INSTANCES:
         try:
             print(f"Trying Cobalt: {instance}")
-            # Try V10 API (Root)
-            payload = {
-                'url': youtube_url,
-                'downloadMode': 'audio',
-                'audioFormat': 'mp3'
-            }
-            # verify=False fixes 'sslip.io' self-signed cert error
-            resp = requests.post(instance, json=payload, headers=headers, timeout=10, verify=False)
+            payload = {'url': youtube_url, 'downloadMode': 'audio', 'audioFormat': 'mp3'}
             
-            # Fallback to /api/json if root fails (V7 compatibility)
-            if resp.status_code == 404:
-                 resp = requests.post(f"{instance}/api/json", json=payload, headers=headers, timeout=10, verify=False)
+            # verify=False fixes 'sslip.io'
+            resp = requests.post(instance, json=payload, headers=headers, timeout=8, verify=False)
+            
+            # 404/405 -> Try /api/json (V7/V10 compat)
+            if resp.status_code in [404, 405]:
+                 resp = requests.post(f"{instance}/api/json", json=payload, headers=headers, timeout=8, verify=False)
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -84,44 +93,63 @@ def stream_song():
                     print(f"Cobalt Success: {instance}")
                     return jsonify({'url': data['url']})
             else:
-                print(f"Cobalt {instance} status {resp.status_code}: {resp.text[:100]}")
+                print(f"Cobalt {instance} status {resp.status_code}")
 
         except Exception as e:
-            print(f"Cobalt {instance} failed: {e}")
+            print(f"Cobalt {instance} error: {e}")
             continue
 
-    # 2. Try Piped Instances (Backup)
-    piped_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-
+    # --- STRATEGY 2: PIPED ---
     for instance in PIPED_INSTANCES:
         try:
             print(f"Trying Piped: {instance}")
-            resp = requests.get(f"{instance}/streams/{video_id}", headers=piped_headers, timeout=10)
+            resp = requests.get(f"{instance}/streams/{video_id}", headers=headers, timeout=8)
             
             if resp.status_code == 200:
                 data = resp.json()
-                audio_streams = data.get('audioStreams', [])
-                
-                # Find mp4 audio
-                for stream in audio_streams:
+                for stream in data.get('audioStreams', []):
                     if stream.get('mimeType') == 'audio/mp4':
                         print(f"Piped Success: {instance}")
                         return jsonify({'url': stream['url']})
-                
-                # Fallback to any stream
-                if audio_streams:
+                        
+                if data.get('audioStreams'):
                      print(f"Piped Fallback Success: {instance}")
-                     return jsonify({'url': audio_streams[0]['url']})
+                     return jsonify({'url': data['audioStreams'][0]['url']})
             else:
-                 print(f"Piped {instance} status {resp.status_code}: {resp.text[:50]}")
+                 print(f"Piped {instance} status {resp.status_code}")
 
         except Exception as e:
-            print(f"Piped {instance} failed: {e}")
+            print(f"Piped {instance} error: {e}")
             continue
 
-    return jsonify({"error": "All instances failed"}), 500
+    # --- STRATEGY 3: INVIDIOUS (New!) ---
+    for instance in INVIDIOUS_INSTANCES:
+        try:
+            print(f"Trying Invidious: {instance}")
+            resp = requests.get(f"{instance}/api/v1/videos/{video_id}", headers=headers, timeout=8)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                # Sort by quality/bitrate if possible, but taking first valid logic
+                for stream in data.get('formatStreams', []):
+                    # Request audio/mp4 or any audio container
+                    if 'audio' in stream.get('type', '') or stream.get('container') == 'm4a':
+                         print(f"Invidious Success: {instance}")
+                         return jsonify({'url': stream['url']})
+                
+                # Check adaptive streams (audio only)
+                for stream in data.get('adaptiveFormats', []):
+                    if 'audio' in stream.get('type', ''):
+                         print(f"Invidious Adaptive Success: {instance}")
+                         return jsonify({'url': stream['url']})
+            else:
+                 print(f"Invidious {instance} status {resp.status_code}")
+                 
+        except Exception as e:
+            print(f"Invidious {instance} error: {e}")
+            continue
+
+    return jsonify({"error": "All instances (Cobalt, Piped, Invidious) failed"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
